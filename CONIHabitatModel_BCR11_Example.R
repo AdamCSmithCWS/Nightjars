@@ -118,40 +118,42 @@ cns.11 <- cns.coni.off %>%
   rename(pres=coni.pres)
 
 #4b. Read in spatial data----
-ag.rd <- raster("Layers_WGS84V2.tif", band=1)
+#Spatial rasters ("Layers_WGS84V2_BCR11.tif") available at https://drive.google.com/file/d/1iHRGk4Ft2YxMrnGp0c-Z1jp-UW3iHIpu/view?usp=sharing
+
+ag.rd <- raster("Layers_WGS84V2_BCR11.tif", band=1)
 names(ag.rd) <- "Agriculture"
-water.rd <- raster("Layers_WGS84V2.tif", band=2)
+water.rd <- raster("Layers_WGS84V2_BCR11.tif", band=2)
 names(water.rd) <- "Water"
-dev.rd <- raster("Layers_WGS84V2.tif", band=3)
+dev.rd <- raster("Layers_WGS84V2_BCR11.tif", band=3)
 names(dev.rd) <- "Development"
-grass.rd <- raster("Layers_WGS84V2.tif", band=4)
+grass.rd <- raster("Layers_WGS84V2_BCR11.tif", band=4)
 names(grass.rd) <- "Grassland"
-shrub.rd <- raster("Layers_WGS84V2.tif", band=5)
+shrub.rd <- raster("Layers_WGS84V2_BCR11.tif", band=5)
 names(shrub.rd) <- "Shrubland"
-min.rd <- raster("Layers_WGS84V2.tif", band=6)
+min.rd <- raster("Layers_WGS84V2_BCR11.tif", band=6)
 names(min.rd) <- "Wetland"
-taiga.rd <- raster("Layers_WGS84V2.tif", band=7)
+taiga.rd <- raster("Layers_WGS84V2_BCR11.tif", band=7)
 names(taiga.rd) <- "Taiga"
-wet.rd <- raster("Layers_WGS84V2.tif", band=8)
+wet.rd <- raster("Layers_WGS84V2_BCR11.tif", band=8)
 names(wet.rd) <- "Wet"
-decid.rd <- raster("Layers_WGS84V2.tif", band=9)
+decid.rd <- raster("Layers_WGS84V2_BCR11.tif", band=9)
 names(decid.rd) <- "Deciduous"
-conif.rd <- raster("Layers_WGS84V2.tif", band=10)
+conif.rd <- raster("Layers_WGS84V2_BCR11.tif", band=10)
 names(conif.rd) <- "Coniferous"
-mix.rd <- raster("Layers_WGS84V2.tif", band=11)
+mix.rd <- raster("Layers_WGS84V2_BCR11.tif", band=11)
 names(mix.rd) <- "Mixedwood"
-tree.rd <- raster("Layers_WGS84V2.tif", band=12)
+tree.rd <- raster("Layers_WGS84V2_BCR11.tif", band=12)
 names(tree.rd) <- "Tree"
-temp.rd <- raster("Layers_WGS84V2.tif", band=13)
+temp.rd <- raster("Layers_WGS84V2_BCR11.tif", band=13)
 names(temp.rd) <- "Temperature"
-pre.rd <- raster("Layers_WGS84V2.tif", band=14)
+pre.rd <- raster("Layers_WGS84V2_BCR11.tif", band=14)
 names(pre.rd) <- "Precipitation"
-dem.rd <- raster("Layers_WGS84V2.tif", band=15)
+dem.rd <- raster("Layers_WGS84V2_BCR11.tif", band=15)
 names(dem.rd) <- "Elevation"
-height.rd <- raster("Layers_WGS84V2.tif", band=16)
+height.rd <- raster("Layers_WGS84V2_BCR11.tif", band=16)
 names(height.rd) <- "Height"
 
-layers <- stack(ag.rd, 
+layers.cut <- stack(ag.rd, 
                 water.rd,
                 dev.rd,
                 grass.rd,
@@ -168,17 +170,7 @@ layers <- stack(ag.rd,
                 dem.rd,
                 height.rd)
 
-#4c. Clip spatial data by BCR----
-cut <- readOGR("BCR11.shp")
-crs(cut)
-plot(cut)
-
-layers.cut <- raster::mask(raster::crop(x=layers, y=cut), mask=cut)
-plot(layers.cut, 16)
-plot(cut, add=TRUE)
-writeRaster(layers.cut, "Layers_WGS84V2_BCR11.tif", format="GTiff", overwrite=TRUE)
-
-#4d. Extract covariates for survey points & filter out those outside the spatial data extent----
+#4c. Extract covariates for survey points & filter out those outside the spatial data extent----
 #BBS
 covs.all <- data.frame(raster::extract(layers.cut, bbs.11[,c("long", "lat")]))
 bbs.covs <- cbind(bbs.11, covs.all)
@@ -201,7 +193,7 @@ cns.use1 <- cns.covs %>%
 cnsbbs.use1 <- cns.use1 %>% 
   rbind(bbs.use1)
 
-#4e. Plot to check extent----
+#4d. Plot to check extent----
 #BBS
 bbs.present <- subset(bbs.use1, pres==1)
 bbs.absent <- subset(bbs.use1, pres==0)
@@ -223,7 +215,7 @@ plot(layers.cut, 6)
 points(cnsbbs.absent$long, cnsbbs.absent$lat, pch = 16, col="black")
 points(cnsbbs.present$long, cnsbbs.present$lat, pch=16, col="red")
 
-#4f. Center & standardize survey data----
+#4e. Center & standardize survey data----
 #BBS
 bbs.use2 <- bbs.use1 %>% 
   dplyr::select(doy,
@@ -305,7 +297,7 @@ names(cnsbbs.covs.st) <- paste0(names(cnsbbs.covs.st), ".st")
 cnsbbs.use3 <- cbind(ID=cnsbbs.use1$ID, pres=cnsbbs.use1$pres, route=cnsbbs.use1$route, lat=cnsbbs.use1$lat, long=cnsbbs.use1$long, off=cnsbbs.use1$off, cnsbbs.use2, cnsbbs.covs.st)
 write.csv(cnsbbs.use3, "WRBBSStandardizedData_BCR11.csv", row.names = FALSE)
 
-#4g. Center & standardize spatial data (for prediction)----
+#4f. Center & standardize spatial data (for prediction)----
 #BBS
 #Extract means and sds
 center <- attr(bbs.covs.st1, "scaled:center")
@@ -425,7 +417,7 @@ layers.cnsbbs <- stack(water.rad.st, grass.rad.st, shrub.rad.st, min.rad.st, wet
 setwd("/Volumes/ECK001/TrendsAnalysis")
 writeRaster(layers.cnsbbs, "WRBBSStandardizedLayersAll_BCR11.tif", format="GTiff", overwrite=TRUE)
 
-#4h. Check for collinearity----
+#4g. Check for collinearity----
 #BBS
 bbs.covs.colin <- bbs.use3 %>% 
   dplyr::select(Water,
