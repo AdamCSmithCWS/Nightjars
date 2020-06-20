@@ -30,7 +30,7 @@ library(progress)
 
 for(sj in 1:nrow(simparam)){
 set.seed(2019)
-  setwd(paste0("/nightjarfinal"))
+  #setwd(paste0("/nightjarfinal"))
   
     sim = simparam[sj,"simparam"]
 
@@ -69,6 +69,7 @@ nj = nj[which(nj$BCR %in% bcrs),]
 
 nj$route = paste(nj$BCR,nj$route,sep = "_")
 
+fyearnj = min(nj$year) #first year of the cns survey used as the centering parameter for the slope
 
 bbsalt1 = read.csv("BBS_data_matching.csv")
 
@@ -230,7 +231,7 @@ sd.noise[i] <- 1/pow(tau.noise[i],0.5)#~ dunif(0.001,5)
 ################
 ## route-effects
 ################
-for(s in 1:nstrata){
+for(s in 1:nstrata){ # the data are structured based on strata (bcrs) but the stratification is not used in the model
 for(r in 1:nroutes[i,s]){
 rte[i,s,r] ~ dnorm(prog[i],tau.rte[i])#consider separate sd.rte[i] kept the same here so that the two datasets can inform each other on route-level variation
 }
@@ -249,27 +250,30 @@ rte[i,s,r] ~ dnorm(prog[i],tau.rte[i])#consider separate sd.rte[i] kept the same
 
 }#i by prog
 
-
+slope = dnorm(0,0.1) #long-term trend estimate
 
 ################
 ## year-effects
 ################
-yeareffect[1] <- 0 #~ dnorm(0,0.01) # survey-wide 1st year
+# yeareffect[1] ~ dnorm(0,0.01) # survey-wide 1st year
+# 
+# 
+# 
+# 
+# for(y in 2:nyears){
+# yeareffect[y] ~ dnorm(yeareffect[y-1],tau.year)# survey-wide mean
+# }# y
 
-
-
-
-for(y in 2:nyears){
-yeareffect[y] ~ dnorm(yeareffect[y-1],tau.year)# survey-wide mean
-}# y
-
+for(y in 1:nyears){
+ yeareffect[y] ~ dnorm(0,tau.year)# random year effects - fluctuations around the trend-line
+ }# y
 
 ################
 ## likelihood
 ################
 for(i in 1:ncounts){
-elambda1[i] <- yeareffect[year[i]] + rte[program[i],strat[i],route[i]] #strata[strat[i]] + + prog[program[i]]obs[program[i],strat[i],obser[i]] +
-#elambda[i] ~ dt(elambda1[i],tau.noise, nu) #heavy-tailed overdispersion
+elambda1[i] <- (year[i]-fyear)*slope + yeareffect[year[i]] + rte[program[i],strat[i],route[i]] #
+#elambda[i] ~ dt(elambda1[i],tau.noise, nu) #alternative heavy-tailed overdispersion
 elambda[i] ~ dnorm(elambda1[i],tau.noise[program[i]]) #overdispersion
 log(lambda[i]) <- elambda[i]
 count[i] ~ dpois(lambda[i])
