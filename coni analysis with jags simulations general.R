@@ -179,6 +179,7 @@ xstrata = c(5,8,9,10,12,14)#extra BCRs to expand the nightjar program
 
 nstratax = nstrata+length(xstrata)
 nroutesx = c(nrtsbbs,as.integer(bbsrtsbybcr[paste(xstrata)]))
+fyear = unique(alldat[which(alldat$year == fyearnj),"yearx"])
 
 
 jags.dat = list(ncounts = ncounts,
@@ -197,19 +198,20 @@ jags.dat = list(ncounts = ncounts,
                 nyearspred = nyearspred,
                 B = B.true,
                 nstratax = nstratax,
-                nroutesx = nroutesx)
+                nroutesx = nroutesx,
+                fyear = fyear)
 
 
 
 newdir = paste0(getwd(),"/",sim)
 dir.create(newdir)
-setwd(newdir)
+#setwd(newdir)
 
 
 mod.sh = "
 model{
 ### priors
-tau.year<- 1/pow(sd.year,2)# ~dgamma(0.01,0.01)## survey-wide year-effect precision 1st difference
+tau.year<- 1/pow(sd.year,2)# ~dgamma(0.01,0.01)## survey-wide year-effect precision 
 sd.year ~ dunif(0.001,2) #<- 1/pow(tau.year,0.5)#
 
 ################
@@ -223,7 +225,7 @@ prog[i] ~ dnorm(0,1)
  tau.rte[i] ~ dgamma(0.001,0.001)
  sd.rte[i] <- 1/pow(tau.rte[i],0.5)
 
-tau.noise[i] ~ dgamma(0.001,0.001)# <- 1/pow(sd.noise[i],2) ## survey-wide year-effect precision 1st difference
+tau.noise[i] ~ dgamma(0.001,0.001)# <- 1/pow(sd.noise[i],2) ## 
 
 sd.noise[i] <- 1/pow(tau.noise[i],0.5)#~ dunif(0.001,5)
 
@@ -233,7 +235,7 @@ sd.noise[i] <- 1/pow(tau.noise[i],0.5)#~ dunif(0.001,5)
 ################
 for(s in 1:nstrata){ # the data are structured based on strata (bcrs) but the stratification is not used in the model
 for(r in 1:nroutes[i,s]){
-rte[i,s,r] ~ dnorm(prog[i],tau.rte[i])#consider separate sd.rte[i] kept the same here so that the two datasets can inform each other on route-level variation
+rte[i,s,r] ~ dnorm(prog[i],tau.rte[i])#
 }
 
 }#s
@@ -243,14 +245,14 @@ rte[i,s,r] ~ dnorm(prog[i],tau.rte[i])#consider separate sd.rte[i] kept the same
 ################
 for(s in (nstrata+1):nstratax){
 for(r in 1:nroutesx[s]){
-rte[i,s,r] ~ dnorm(prog[i],tau.rte[i])#consider separate sd.rte[i] kept the same here so that the two datasets can inform each other on route-level variation
+rte[i,s,r] ~ dnorm(prog[i],tau.rte[i])#
 }#rx
 
 }#sx
 
 }#i by prog
 
-slope = dnorm(0,0.1) #long-term trend estimate
+slope ~ dnorm(0,0.1) #long-term trend estimate
 
 ################
 ## year-effects
@@ -406,7 +408,7 @@ n.thin = 500
 n.iter = n.burn+(n.save*n.thin)
 
 ## parameters to monitor
-params = c(#"n",
+params = c("slope",
            "sd.year",
            "sd.obs",
            "sd.year.st",
@@ -426,7 +428,8 @@ jagmod.comb = jags(data = jags.dat,
               n.burnin = n.burn,
               parameters.to.save = params,
               model.file = mod.name,
-              parallel = T)
+              parallel = T,
+              modules = NULL)
 
 t2 = Sys.time()
 
@@ -453,19 +456,19 @@ jagmod.comb.preds = update(jagmod.comb,
 
 
 # 
-pdf(file = "jags summary combined w predictions simple.pdf")
+pdf(file = paste0(newdir,"/jags summary combined w predictions simple.pdf"))
 plot(jagmod.comb$samples)
 dev.off()
 
-pdf(file = "jags summary combined w predictions post pred simple.pdf")
+pdf(file = paste0(newdir,"/jags summary combined w predictions post pred simple.pdf"))
 plot(jagmod.comb.preds$samples)
 dev.off()
 
-write.csv(jagso.comb,"jags summary combined model w predictions simple.csv")
+write.csv(jagso.comb,paste0(newdir,"/jags summary combined model w predictions simple.csv"))
 
 
 
- save.image("combined model post jags w predictions decline.RData")
+# save.image("combined model post jags w predictions decline.RData")
 # 
 
 
@@ -486,17 +489,17 @@ quantile(preds[,,,2,],na.rm = T,probs = c(0.001,0.01,0.025,0.05,seq(0.1,0.9,0.1)
 
 quantile(preds,na.rm = T,probs = c(0.001,0.01,0.025,0.05,seq(0.1,0.9,0.1),0.95,0.975,0.99,0.999))
 
-overpreds = length(which(preds > (10*max(alldat$count))))
-reasonablepreds = length(which(preds < (10*max(alldat$count))))
+overpreds = length(which(preds > (5*max(alldat$count))))
+reasonablepreds = length(which(preds < (5*max(alldat$count))))
 overpreds/reasonablepreds
-#0.0004301255
-## 0.04% of simulated observations are > 1 order of magnitude larger than the largest observed count
+#0.0004452661
+## 0.04% of simulated observations are > 5 times larger than the largest observed count
 # this line below removes these simulated counts treating them as missing data
 # this is sub-optimal, but given that it affects simulated counts from both surveys,
 # and it affects such a small percentage of the counts,
 # it should have an important effect on the final results
-preds[which(preds > (10*max(alldat$count)))] <- NA
-### above removes counts that are more than 10X higher than the highest count ever observed on the nightjar survey
+preds[which(preds > (5*max(alldat$count)))] <- NA
+### above removes counts that are more than 5X higher than the highest count ever observed on the nightjar survey
 ## the necessity of this highlights the inadequacies of the log-normal, extra-poisson overdispersion term
 ### with a sample as large as the one used in this simulation, just the variance in the coutns
 ### derived from the extra-poisson variation generates estimates of the mean count > 500 birds
@@ -737,7 +740,7 @@ resc = floor((nyearspred/2))
   }#vers
   
   rm(list = ls()[which(ls() %in% c("tmbbs2","tmnj2","tm2","tmbbs","tmnj","tm","tt","ttt"))])
-  write.csv(out[c(1:i),],"simulation summary results simple.csv",row.names = F)
+  write.csv(out[c(1:i),],paste0(newdir,"/simulation summary results simple.csv"),row.names = F)
   
   pbar$tick()
   
@@ -762,7 +765,7 @@ print(paste("assumes nationally ",extrancnts.bbs,"routes run annually from the B
 
 
 
-save.image("post sim summary.RData")
+save.image(paste0(newdir,"/post sim summary.RData"))
 
 
 }
@@ -779,6 +782,9 @@ save.image("post sim summary.RData")
 ########################## plotting
 ########################## plotting
 ########################## plotting
+
+# Plotting ----------------------------------------------------------------
+
 
 library(ggplot2)
 library(RColorBrewer)
@@ -809,19 +815,20 @@ simparam = data.frame(simparam = c("base","10pdecrease","stable","20yr"),
 
 for(sj in 1:nrow(simparam)){
   set.seed(2019)
-  setwd(paste0("C:/nightjar/nightjarfinal"))
+  #setwd(paste0("C:/nightjar/nightjarfinal"))
   
   sim = simparam[sj,"simparam"]
-  
   newdir = paste0(getwd(),"/",sim)
-  setwd(newdir)
+  
+  #newdir = paste0(getwd(),"/",sim)
+  #setwd(newdir)
   
   
   B.true = simparam[sj,"B.true"] #log-scale, multiplicative annual change that results in a 30% decline over 10 years
   
 
 
-out = read.csv("simulation summary results simple.csv",stringsAsFactors = F)
+out = read.csv(paste0(newdir,"/simulation summary results simple.csv"),stringsAsFactors = F)
 
  # out[,"comb_y_coef"] = out[,"nj_y_coef"]
  # out[,"comb_y_coef_SE"] = out[,"nj_y_coef_SE"]
@@ -933,7 +940,7 @@ pm = ggplot(data = tmp,aes(x = surv,y = mean,fill = Invest))+
   labs(x = "",y = paste("Probability of Trend Significantly",gg,signif(simparam[sj,n],2)))+
   scale_y_continuous(limits = c(0,1),expand = expand_scale(mult = c(0,0)))
 
-pdf(paste0(paste("Probability of Trend Significantly",gg,signif(simparam[sj,n],2)),".pdf"),
+pdf(paste0(newdir,paste("/Probability of Trend Significantly",gg,signif(simparam[sj,n],2)),".pdf"),
     height = 8,
     width = 4)
 print(pm)
@@ -978,7 +985,7 @@ dev.off()
     
     
     
-    pdf(paste0(paste("SE of trend.pdf")),
+    pdf(paste0(newdir,paste("/SE of trend.pdf")),
         height = 8,
         width = 4)
     print(pm)
@@ -1020,7 +1027,7 @@ dev.off()
     
     
     
-    pdf(paste0(paste("Absolute Error of trend.pdf")),
+    pdf(paste0(newdir,paste("/Absolute Error of trend.pdf")),
         height = 8,
         width = 4)
     print(pm)
@@ -1052,7 +1059,7 @@ dev.off()
     
     
     
-    pdf(paste0(paste("Violin Absolute Error of trend.pdf")),
+    pdf(paste0(newdir,paste("/Violin Absolute Error of trend.pdf")),
         height = 8,
         width = 4)
     print(pm)
@@ -1062,7 +1069,7 @@ dev.off()
 
 
 
-write.csv(out, "Nightjar simulation results summary.csv")
+write.csv(out, paste0(newdir,"/Nightjar simulation results summary.csv"))
 
 
 

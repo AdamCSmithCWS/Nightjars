@@ -1,0 +1,181 @@
+
+model{
+### priors
+tau.year<- 1/pow(sd.year,2)# ~dgamma(0.01,0.01)## survey-wide year-effect precision 
+sd.year ~ dunif(0.001,2) #<- 1/pow(tau.year,0.5)#
+
+################
+## #program specific intercepts
+################
+
+
+for(i in 1:nprogs){ 
+prog[i] ~ dnorm(0,1)
+###program specific observer variation
+ tau.rte[i] ~ dgamma(0.001,0.001)
+ sd.rte[i] <- 1/pow(tau.rte[i],0.5)
+
+tau.noise[i] ~ dgamma(0.001,0.001)# <- 1/pow(sd.noise[i],2) ## 
+
+sd.noise[i] <- 1/pow(tau.noise[i],0.5)#~ dunif(0.001,5)
+
+
+################
+## route-effects
+################
+for(s in 1:nstrata){ # the data are structured based on strata (bcrs) but the stratification is not used in the model
+for(r in 1:nroutes[i,s]){
+rte[i,s,r] ~ dnorm(prog[i],tau.rte[i])#
+}
+
+}#s
+
+################
+## extra route-effects
+################
+for(s in (nstrata+1):nstratax){
+for(r in 1:nroutesx[s]){
+rte[i,s,r] ~ dnorm(prog[i],tau.rte[i])#
+}#rx
+
+}#sx
+
+}#i by prog
+
+slope ~ dnorm(0,0.1) #long-term trend estimate
+
+################
+## year-effects
+################
+# yeareffect[1] ~ dnorm(0,0.01) # survey-wide 1st year
+# 
+# 
+# 
+# 
+# for(y in 2:nyears){
+# yeareffect[y] ~ dnorm(yeareffect[y-1],tau.year)# survey-wide mean
+# }# y
+
+for(y in 1:nyears){
+ yeareffect[y] ~ dnorm(0,tau.year)# random year effects - fluctuations around the trend-line
+ }# y
+
+################
+## likelihood
+################
+for(i in 1:ncounts){
+elambda1[i] <- (year[i]-fyear)*slope + yeareffect[year[i]] + rte[program[i],strat[i],route[i]] #
+#elambda[i] ~ dt(elambda1[i],tau.noise, nu) #alternative heavy-tailed overdispersion
+elambda[i] ~ dnorm(elambda1[i],tau.noise[program[i]]) #overdispersion
+log(lambda[i]) <- elambda[i]
+count[i] ~ dpois(lambda[i])
+log_lik[i] <- logdensity.pois(count[i],lambda[i]) # log likelihood calculation used to calculate WAIC values
+}
+
+###################
+### derived parameters
+###################
+# 
+# for(y in 1:nyears){
+# for(s in 1:nstrata){
+# for(p in 1:nprogs){
+# 
+# for(r in 1:nroutes[p,s]){
+# nr[s,y,p,r] <- exp(yeareffect[y] + rte[p,s,r] + 0.5*(1/tau.noise[p]))#prog[p] + strata[s] + 
+# }
+# 
+# # for(r in 1:nrtsbbs[s]){
+# # nryp[s,y,p,r] <- exp(yeareffect[y] + rte[1,s,r] + 0.5*(1/tau.noise[p]))#prog[p] + strata[s] + 
+# # }
+# 
+# n[s,y,p] <- mean(nr[s,y,p,1:nroutes[p,s]])
+# #nhyp[s,y,p] <- mean(nrhyp[s,y,p,1:nrtsbbs[s]])
+# }
+# 
+# }
+# }
+
+
+
+##############################
+### predicted timeseries of counts for next 11 years, with a 10% decline
+##############################
+# 
+  
+Btau <- 1/(pow((0.005),2)) #simulating route, year, strata, and program-specific trends centered on the rate required for a 30% decline
+
+### sets true trend for each route and stratum, uses only nroutes for BBS because it has higher route numbers in all strata
+for(s in 1:nstrata){
+
+for(r in 1:nrtsbbs[s]){
+betasM[s,r] ~ dnorm(B,Btau)
+}
+
+}
+
+for(s in (1+nstrata):nstratax){
+
+for(r in 1:nroutesx[s]){
+betasM[s,r] ~ dnorm(B,Btau)
+}
+
+}
+
+
+for(y in 1:nyearspred){
+yeareffectpred[y] ~ dnorm(0,tau.year)
+
+for(s in 1:nstrata){
+
+for(p in 1:nprogs){
+for(r in 1:nrtsbbs[s]){
+betas[y,s,p,r] <- betasM[s,r]
+}
+for(r in 1:nroutes[p,s]){
+
+elp1[s,y,p,r] <- ((betas[y,s,p,r]*y) + yeareffectpred[y] + rte[p,s,r] )#+ prog[p]+strata[s] + 
+#elp2[s,y,p,r] ~ dt(elp1[s,y,p,r],tau.noise,nu) #heavy-tailed overdispersion
+elp2[s,y,p,r] ~ dnorm(elp1[s,y,p,r],tau.noise[p]) #overdispersion
+log(lambdap[s,y,p,r]) <- elp2[s,y,p,r]
+countp[s,y,p,r] ~ dpois(lambdap[s,y,p,r])
+
+}#r
+
+
+
+}#p
+
+}#s
+
+
+for(s in (nstrata+1):nstratax){
+
+for(p in 1:nprogs){
+for(r in 1:nroutesx[s]){
+betas[y,s,p,r] <- betasM[s,r]
+elp1[s,y,p,r] <- ((betas[y,s,p,r]*y) + yeareffectpred[y] + rte[p,s,r] )#+ prog[p]+strata[s] + 
+#elp2[s,y,p,r] ~ dt(elp1[s,y,p,r],tau.noise,nu) #heavy-tailed overdispersion
+elp2[s,y,p,r] ~ dnorm(elp1[s,y,p,r],tau.noise[p]) #overdispersion
+log(lambdap[s,y,p,r]) <- elp2[s,y,p,r]
+countp[s,y,p,r] ~ dpois(lambdap[s,y,p,r])
+
+}#r
+
+
+
+}#p
+
+}#s
+
+
+}#y
+
+
+
+
+
+
+
+
+
+}
