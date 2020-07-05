@@ -27,8 +27,26 @@ library(lme4)
 library(reshape2)
 library(progress)
 
+library(parallel)
+library(doParallel)
+library(foreach)
 
-for(sj in 1:nrow(simparam)){
+
+
+n_cores <- 4
+cluster <- makeCluster(n_cores, type = "PSOCK")
+registerDoParallel(cluster)
+
+
+
+fullrun <- foreach(sj = 1:4,
+                   .packages = c("progress","reshape2","lme4","jagsUI","loo"),
+                   .inorder = FALSE,
+                   .errorhandling = "pass") %dopar%
+  {
+    
+    
+#for(sj in 1:nrow(simparam)){
 set.seed(2019)
   #setwd(paste0("/nightjarfinal"))
   
@@ -770,7 +788,11 @@ print(paste("assumes nationally ",extrancnts.bbs,"routes run annually from the B
 save.image(paste0(newdir,"/post sim summary.RData"))
 
 
-}
+  }
+
+
+
+stopCluster(cl = cluster)
 
 
 
