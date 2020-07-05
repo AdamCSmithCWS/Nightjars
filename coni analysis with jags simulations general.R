@@ -34,6 +34,9 @@ set.seed(2019)
   
     sim = simparam[sj,"simparam"]
 
+# data-preparation --------------------------------------------------------
+
+
 load("full bbs routelist.RData")
 
 
@@ -92,15 +95,6 @@ bbs = bbsalt[which(bbsalt$BCR %in% bcrs),]
 maxbyrt = tapply(bbs$count,bbs$route,max,na.rm = T)
 bbs = bbs[which(bbs$route %in% names(maxbyrt)[which(maxbyrt > 0)]),]
 ### remove bbs routes where species never observed
-
-
-
-
-#rm(route)
-#### removing BBS route data from outside the provinces of interest
-
-
-
 
 
 
@@ -202,6 +196,9 @@ jags.dat = list(ncounts = ncounts,
                 fyear = fyear)
 
 
+# Bayesian model description -----------------------------------------------
+
+
 
 newdir = paste0(getwd(),"/",sim)
 dir.create(newdir)
@@ -258,10 +255,8 @@ slope ~ dnorm(0,0.1) #long-term trend estimate
 ## year-effects
 ################
 # yeareffect[1] ~ dnorm(0,0.01) # survey-wide 1st year
-# 
-# 
-# 
-# 
+#  
+# Optional first-difference year-effects approach used in preliminary models, generates similar results
 # for(y in 2:nyears){
 # yeareffect[y] ~ dnorm(yeareffect[y-1],tau.year)# survey-wide mean
 # }# y
@@ -283,7 +278,7 @@ log_lik[i] <- logdensity.pois(count[i],lambda[i]) # log likelihood calculation u
 }
 
 ###################
-### derived parameters
+### optional derived parameters
 ###################
 # 
 # for(y in 1:nyears){
@@ -400,6 +395,10 @@ cat(mod.sh,
 #                       n.chains= 1 , 
 #                       n.adapt= 500)
 
+
+# Bayesian model fitting --------------------------------------------------
+
+
 #MCMC settings
 n.chain = 3
 n.save = 10000
@@ -473,6 +472,9 @@ write.csv(jagso.comb,paste0(newdir,"/jags summary combined model w predictions s
 
 
 
+
+
+# simulating trend estimates ----------------------------------------------
 
 
 
@@ -607,7 +609,7 @@ resc = floor((nyearspred/2))
 #   tm2 = try(glmer(formula = simcount~ yr*strat + (1|rte)+(1|itr),
 #                    data = simdat,
 #                    family = poisson(link = "log")),silent = T)
-  tm = try(glmer(formula = simcount~ yr + (1|rte)+(1|itr),
+  tm = try(glmer(formula = simcount~ yr + prog + (1|rte)+(1|itr),
                  data = simdat,
                  family = poisson(link = "log")),silent = T)
 
@@ -638,7 +640,7 @@ resc = floor((nyearspred/2))
     tmnj = try(glmer(formula = simcount~ yr + (1|itr),
                      data = simdatnj,
                      family = poisson(link = "log")),silent = T)
-    tm = try(glmer(formula = simcount~ yr + (1|itr),
+    tm = try(glmer(formula = simcount~ yr + prog + (1|itr),
                    data = simdat,
                    family = poisson(link = "log")),silent = T)
     tmbbs = try(glmer(formula = simcount~ yr + (1|itr),
@@ -659,7 +661,7 @@ resc = floor((nyearspred/2))
       tmnj = try(glmer(formula = simcount~ yr + (1|itr),
                        data = dnj2,
                        family = poisson(link = "log")),silent = T)
-      tm = try(glmer(formula = simcount~ yr + (1|itr),
+      tm = try(glmer(formula = simcount~ yr + prog + (1|itr),
                      data = dcomb2,
                      family = poisson(link = "log")),silent = T)
       tmbbs = try(glmer(formula = simcount~ yr + (1|itr),
