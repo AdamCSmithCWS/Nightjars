@@ -1098,6 +1098,30 @@ write.csv(out, paste0(newdir,"/Nightjar simulation results summary.csv"))
 
 
 
+
+# checking the precision based on reduced models --------------------------
+
+library(patchwork)
+pp = ggplot(data = out,aes(extracomb_y_coef_SE,group = extracomment2))+
+  geom_histogram()+
+  facet_wrap(nrow = 2, facets = ~extracomment2)
+
+
+pp2 = ggplot(data = out,aes(extranj_y_coef_SE,group = extracomment2))+
+  geom_histogram()+
+  facet_wrap(nrow = 2, facets = ~extracomment2)
+
+
+pp3 = ggplot(data = out,aes(extrabbs_y_coef_SE,group = extracomment2))+
+  geom_histogram()+
+  facet_wrap(nrow = 2, facets = ~extracomment2)
+
+ppa <- pp + pp2 + pp3
+
+print(ppa)
+
+
+
 }
 
 
